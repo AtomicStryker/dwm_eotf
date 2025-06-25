@@ -8,5 +8,8 @@ If you want to use a different gamma value than 2.4, you can pass it as an argum
 
 Additionally, you can scale the SDR brightness level by a factor. For example, run `dwm_eotf.exe 2.2 0.5` and set the SDR slider to 0% (= 80 nits) to get 2.2 gamma output with 40 nits peak brightness. Note that some elements of Windows will show artifacts when you do this, so it's not really recommended.
 
+Additionally, if you don't want to have a paused terminal after running the application, append 1 as third parameter. Example: `dwm_eotf.exe 2.4 1.0 1` to run with defaults and close the window automatically.
+
 # Known issues
 * Chromium-based browsers output everything in scRGB if any wide-gamut or HDR content is visible or open in another tab. When this happens, the browser's color management applies the sRGB EOTF to all sRGB content, which this tool cannot do anything against.
+* If executed before Windows Boot has fully concluded, shader patching will usually fail.

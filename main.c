@@ -244,9 +244,11 @@ typedef LONG (NTAPI *NtSuspendProcess_t)(IN HANDLE ProcessHandle);
 
 typedef LONG (NTAPI *NtResumeProcess_t)(IN HANDLE ProcessHandle);
 
+int skipPause = 0;
+
 int main(int argc, char *argv[]) {
-    if (argc > 3) {
-        printf("Usage: dwm_eotf [gamma [scale factor]]\n");
+    if (argc > 4) {
+        printf("Usage: dwm_eotf [gamma [scale factor [skipPause]]]\n");
         return 1;
     }
     if (argc >= 2) {
@@ -258,7 +260,7 @@ int main(int argc, char *argv[]) {
 
         patchedConstants[0] = gamma;
     }
-    if (argc == 3) {
+    if (argc >= 3) {
         float scale = atof(argv[2]);
         if (scale < 0.01 || scale > 10) {
             printf("Got invalid scale factor %f, exiting\n", scale);
@@ -266,6 +268,9 @@ int main(int argc, char *argv[]) {
         }
 
         patchedConstants[3] = powf(sqrtf(scale), 1 / patchedConstants[0]);
+    }
+    if (argc == 4) {
+        skipPause = atoi(argv[3]);
     }
 
     currentSessionId = WTSGetActiveConsoleSessionId();
@@ -343,12 +348,20 @@ int main(int argc, char *argv[]) {
 
     while (VirtualQueryEx(hProcess, addr + offset, &mbi, sizeof(mbi))) {
         if (mbi.RegionSize > 4096 && mbi.State == MEM_COMMIT && mbi.Protect == PAGE_READONLY) {
-            BYTE buffer[mbi.RegionSize];
+            BYTE *buffer = (BYTE *)malloc(mbi.RegionSize);
+            if (buffer == NULL) {
+                printf("Memory allocation failed.\n");
+                NtResumeProcess(hProcess);
+                CloseHandle(hProcess);
+                system("pause");
+                return 1;
+            }
 
             ReadProcessMemory(hProcess, mbi.BaseAddress, buffer, mbi.RegionSize, &bytesRead);
 
             if (mbi.RegionSize != bytesRead) {
                 printf("tried to read %zu bytes, got %zu\n", mbi.RegionSize, bytesRead);
+                free(buffer);
                 NtResumeProcess(hProcess);
                 CloseHandle(hProcess);
                 return 1;
@@ -358,11 +371,13 @@ int main(int argc, char *argv[]) {
 
             if (!FindAndPatchShaders(buffer, mbi.RegionSize, mbi.BaseAddress, hProcess)) {
                 printf("Error on patching shaders\n");
+                free(buffer);
                 NtResumeProcess(hProcess);
                 CloseHandle(hProcess);
                 return 1;
             }
 
+            free(buffer);
             break;
         }
         offset += mbi.RegionSize;
@@ -390,7 +405,9 @@ int main(int argc, char *argv[]) {
 
     printf("All good?\n");
 
-    system("pause");
+    if (patched == 0 || skipPause == 0) {
+        system("pause");
+    }
 
     return 0;
 }
